@@ -1,3 +1,6 @@
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -8,47 +11,12 @@ import javax.sound.sampled.SourceDataLine;
 
 public class Tone {
 
-    // Mary had a little lamb
-    private static final List<BellNote> song = new ArrayList<BellNote>() {{
-        add(new BellNote(Note.A5, NoteLength.QUARTER));
-        add(new BellNote(Note.G4, NoteLength.QUARTER));
-        add(new BellNote(Note.F4, NoteLength.QUARTER));
-        add(new BellNote(Note.G4, NoteLength.QUARTER));
-
-        add(new BellNote(Note.A5, NoteLength.QUARTER));
-        add(new BellNote(Note.A5, NoteLength.QUARTER));
-        add(new BellNote(Note.A5, NoteLength.HALF));
-
-        add(new BellNote(Note.G4, NoteLength.QUARTER));
-        add(new BellNote(Note.G4, NoteLength.QUARTER));
-        add(new BellNote(Note.G4, NoteLength.HALF));
-
-        add(new BellNote(Note.A5, NoteLength.QUARTER));
-        add(new BellNote(Note.A5, NoteLength.QUARTER));
-        add(new BellNote(Note.A5, NoteLength.HALF));
-
-        add(new BellNote(Note.A5, NoteLength.QUARTER));
-        add(new BellNote(Note.G4, NoteLength.QUARTER));
-        add(new BellNote(Note.F4, NoteLength.QUARTER));
-        add(new BellNote(Note.G4, NoteLength.QUARTER));
-
-        add(new BellNote(Note.A5, NoteLength.QUARTER));
-        add(new BellNote(Note.A5, NoteLength.QUARTER));
-        add(new BellNote(Note.A5, NoteLength.QUARTER));
-        add(new BellNote(Note.A5, NoteLength.QUARTER));
-
-        add(new BellNote(Note.G4, NoteLength.QUARTER));
-        add(new BellNote(Note.G4, NoteLength.QUARTER));
-        add(new BellNote(Note.A5, NoteLength.QUARTER));
-        add(new BellNote(Note.G4, NoteLength.QUARTER));
-
-        add(new BellNote(Note.F4, NoteLength.WHOLE));
-    }};
-
     public static void main(String[] args) throws Exception {
         final AudioFormat af =
                 new AudioFormat(Note.SAMPLE_RATE, 8, 1, true, false);
         Tone t = new Tone(af);
+
+        List<BellNote> song = t.loadSong("mary.txt");
         t.playSong(song);
     }
 
@@ -58,12 +26,83 @@ public class Tone {
         this.af = af;
     }
 
+    /**
+     * Loads a song from a text file. Each line should contain a note name
+     * and a note length separated by whitespace, e.g.:
+     *
+     *   A5 QUARTER
+     *   G4 QUARTER
+     *
+     * Blank lines are ignored.
+     */
+    List<BellNote> loadSong(String filename) throws IOException {
+        List<BellNote> notes = new ArrayList<>();
+
+        // Open the file using try-with-resources so it's automatically closed when done.
+        try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
+            String line;
+            int lineNumber = 0;  // Track line number for useful error messages.
+
+            while ((line = reader.readLine()) != null) {
+                lineNumber++;
+                line = line.trim();  // Strip leading/trailing whitespace.
+
+                // Skip blank lines.
+                if (line.isEmpty()) {
+                    continue;
+                }
+
+                // Split on any whitespace, expects exactly two sections: NOTE and LENGTH.
+                String[] parts = line.split("\\s+");
+                if (parts.length != 2) {
+                    throw new IllegalArgumentException(
+                            "Invalid format on line " + lineNumber + ": \"" + line +
+                                    "\". Expected: <NOTE> <LENGTH>"
+                    );
+                }
+
+                Note note;
+                NoteLength length;
+
+                // Parse the first section as a Note enum value (case-insensitive).
+                try {
+                    note = Note.valueOf(parts[0].toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException(
+                            "Unknown note \"" + parts[0] + "\" on line " + lineNumber +
+                                    ". Valid notes: " + java.util.Arrays.toString(Note.values())
+                    );
+                }
+
+                // Parse the second section as a NoteLength enum value (case-insensitive).
+                try {
+                    length = NoteLength.valueOf(parts[1].toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException(
+                            "Unknown note length \"" + parts[1] + "\" on line " + lineNumber +
+                                    ". Valid lengths: " + java.util.Arrays.toString(NoteLength.values())
+                    );
+                }
+
+                // After both sections are valid, add the note to the song.
+                notes.add(new BellNote(note, length));
+            }
+        }
+
+        // Reject empty files so playSong is never called with nothing to play.
+        if (notes.isEmpty()) {
+            throw new IllegalArgumentException("Song file \"" + filename + "\" contains no notes.");
+        }
+
+        return notes;
+    }
+
     void playSong(List<BellNote> song) throws LineUnavailableException {
         try (final SourceDataLine line = AudioSystem.getSourceDataLine(af)) {
             line.open();
             line.start();
 
-            for (BellNote bn: song) {
+            for (BellNote bn : song) {
                 playNote(line, bn);
             }
             line.drain();
