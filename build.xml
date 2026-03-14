@@ -1,0 +1,28 @@
+<project name="Tone" default="run" basedir=".">
+
+    <description>Compiles and runs Mary Had A Little Lamb within the Tone music player</description>
+
+    <!-- Directories -->
+    <property name="src.dir"   value="src" />
+    <property name="build.dir" value="build" />
+
+    <!-- Compile all .java source files into the build directory -->
+    <target name="compile" description="Compile source files">
+        <mkdir dir="${build.dir}" />
+        <javac srcdir="${src.dir}" destdir="${build.dir}" includeantruntime="false" />
+    </target>
+
+    <!-- Run the compiled Tone class (depends on compile being done first) -->
+    <target name="run" depends="compile" description="Compile and run Tone">
+        <java classname="Tone" classpath="${build.dir}" fork="true">
+            <!-- mary.txt is read relative to basedir (the project root) -->
+            <sysproperty key="user.dir" value="${basedir}" />
+        </java>
+    </target>
+
+    <!-- Delete the build directory to force a clean recompile -->
+    <target name="clean" description="Remove compiled class files">
+        <delete dir="${build.dir}" />
+    </target>
+
+</project>
