@@ -12,11 +12,16 @@ import javax.sound.sampled.SourceDataLine;
 public class Tone {
 
     public static void main(String[] args) throws Exception {
+        if (args.length < 1) {
+            System.err.println("Usage: ant run -Dfile=<song-file.txt>");
+            System.exit(1);
+        }
+
         final AudioFormat af =
                 new AudioFormat(Note.SAMPLE_RATE, 8, 1, true, false);
         Tone t = new Tone(af);
 
-        List<BellNote> song = t.loadSong("mary.txt");
+        List<BellNote> song = t.loadSong(args[0]);
         t.playSong(song);
     }
 
@@ -28,31 +33,33 @@ public class Tone {
 
     /**
      * Loads a song from a text file. Each line should contain a note name
-     * and a note length separated by whitespace, e.g.:
+     * and a numeric length separated by whitespace, e.g.:
      *
-     *   A5 QUARTER
-     *   G4 QUARTER
+     *   A5 4    (A5 quarter note)
+     *   G4 2    (G4 half note)
+     *   REST 1  (whole rest)
      *
-     * Blank lines are ignored.
+     * Valid lengths: 1=WHOLE, 2=HALF, 4=QUARTER, 8=EIGTH
+     * Blank lines and lines starting with '#' are ignored as comments.
      */
     List<BellNote> loadSong(String filename) throws IOException {
         List<BellNote> notes = new ArrayList<>();
 
-        // Open the file using try-with-resources so it's automatically closed when done.
+        // Open the file using try-with-resources so it's automatically closed when done
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String line;
-            int lineNumber = 0;  // Track line number for useful error messages.
+            int lineNumber = 0; // Track line number for useful error messages
 
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
-                line = line.trim();  // Strip leading/trailing whitespace.
+                line = line.trim(); // Strip leading/trailing whitespace
 
-                // Skip blank lines.
+                // Skip blank lines and comment lines (starting with '#')
                 if (line.isEmpty()) {
                     continue;
                 }
 
-                // Split on any whitespace, expects exactly two sections: NOTE and LENGTH.
+                // Split on any whitespace — expects exactly two tokens: NOTE and LENGTH
                 String[] parts = line.split("\\s+");
                 if (parts.length != 2) {
                     throw new IllegalArgumentException(
@@ -64,7 +71,7 @@ public class Tone {
                 Note note;
                 NoteLength length;
 
-                // Parse the first section as a Note enum value (case-insensitive).
+                // Parse the first token as a Note enum value (case-insensitive)
                 try {
                     note = Note.valueOf(parts[0].toUpperCase());
                 } catch (IllegalArgumentException e) {
@@ -74,22 +81,22 @@ public class Tone {
                     );
                 }
 
-                // Parse the second section as a NoteLength enum value (case-insensitive).
+                // Parse the second token as a numeric length: 1=WHOLE, 2=HALF, 4=QUARTER, 8=EIGTH
                 try {
-                    length = NoteLength.valueOf(parts[1].toUpperCase());
-                } catch (IllegalArgumentException e) {
+                    length = NoteLength.fromNumeric(Integer.parseInt(parts[1]));
+                } catch (NumberFormatException e) {
                     throw new IllegalArgumentException(
-                            "Unknown note length \"" + parts[1] + "\" on line " + lineNumber +
-                                    ". Valid lengths: " + java.util.Arrays.toString(NoteLength.values())
+                            "Invalid length \"" + parts[1] + "\" on line " + lineNumber +
+                                    ". Expected a number: 1, 2, 4, or 8"
                     );
                 }
 
-                // After both sections are valid, add the note to the song.
+                // Both tokens valid — add the note to the song
                 notes.add(new BellNote(note, length));
             }
         }
 
-        // Reject empty files so playSong is never called with nothing to play.
+        // Reject empty files so playSong is never called with nothing to play
         if (notes.isEmpty()) {
             throw new IllegalArgumentException("Song file \"" + filename + "\" contains no notes.");
         }
@@ -141,6 +148,19 @@ enum NoteLength {
 
     public int timeMs() {
         return timeMs;
+    }
+
+    // Maps a numeric denominator (1, 2, 4, 8) to the corresponding NoteLength
+    public static NoteLength fromNumeric(int n) {
+        switch (n) {
+            case 1: return WHOLE;
+            case 2: return HALF;
+            case 4: return QUARTER;
+            case 8: return EIGTH;
+            default: throw new IllegalArgumentException(
+                    "Invalid note length: " + n + ". Valid values: 1, 2, 4, 8"
+            );
+        }
     }
 }
 

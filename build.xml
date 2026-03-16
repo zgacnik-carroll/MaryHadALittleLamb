@@ -1,6 +1,6 @@
 <project name="Tone" default="run" basedir=".">
 
-    <description>Compiles and runs Mary Had A Little Lamb within the Tone music player</description>
+    <description>Compiles and runs the Tone music player</description>
 
     <!-- Directories -->
     <property name="src.dir"   value="src" />
@@ -13,10 +13,11 @@
     </target>
 
     <!-- Run the compiled Tone class (depends on compile being done first) -->
+    <!-- Usage: ant run -Dfile=mary.txt -->
     <target name="run" depends="compile" description="Compile and run Tone">
+        <fail unless="file" message="Please specify a song file: ant run -Dfile=mary.txt" />
         <java classname="Tone" classpath="${build.dir}" fork="true">
-            <!-- mary.txt is read relative to basedir (the project root) -->
-            <sysproperty key="user.dir" value="${basedir}" />
+            <arg value="${file}" />
         </java>
     </target>
 
