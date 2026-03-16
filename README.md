@@ -20,9 +20,9 @@ This is a simple Java program that reads musical notes from a text file and play
 Each line contains a note name and a length separated by whitespace:
 
 ```
-A5 QUARTER
-G4 HALF
-F4 WHOLE
+A5 4
+G4 2
+F4 1
 ```
 
 - Lines that are blank are ignored
@@ -35,7 +35,7 @@ F4 WHOLE
 Build and run with ANT from the project root:
 
 ```bash
-ant run clean
+ant run clean -Dfile=mary.txt
 ```
 
 This compiles `src/Tone.java` into the `build/` directory, plays `mary.txt`, and cleans the build directory upon program completion.
@@ -47,9 +47,9 @@ This compiles `src/Tone.java` into the `build/` directory, plays `mary.txt`, and
 If you get bored with Mary Had A Little Lamb, you can create your own song!
 
 1. Create a new text file (e.g. `mysong.txt`) in the project root using the format described above
-2. Update the filename in `src/Tone.java`:
+2. run the song file using ANT in the command-line:
 ```java
-List<BellNote> song = t.loadSong("mysong.txt");
+ant run clean -Dfile=mysong.txt
 ```
 
 ---
