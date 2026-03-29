@@ -11,9 +11,9 @@ import javax.sound.sampled.SourceDataLine;
 
 public class Tone {
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         if (args.length < 1) {
-            System.err.println("Usage: ant run -Dfile=<song-file.txt>");
+            System.err.println("Usage: ant run -Dsong=<song-file.txt>");
             System.exit(1);
         }
 
@@ -22,7 +22,16 @@ public class Tone {
         Tone t = new Tone(af);
 
         List<BellNote> song = t.loadSong(args[0]);
-        t.playSong(song);
+        if (song == null) {
+            System.exit(1); // loadSong already printed the error
+        }
+
+        try {
+            t.playSong(song);
+        } catch (LineUnavailableException e) {
+            System.err.println("Error: Audio line unavailable. " + e.getMessage());
+            System.exit(1);
+        }
     }
 
     private final AudioFormat af;
@@ -41,64 +50,62 @@ public class Tone {
      *
      * Valid lengths: 1=WHOLE, 2=HALF, 4=QUARTER, 8=EIGTH
      * Blank lines and lines starting with '#' are ignored as comments.
+     *
+     * Returns null if the file cannot be loaded or contains no valid notes.
      */
-    List<BellNote> loadSong(String filename) throws IOException {
+    List<BellNote> loadSong(String filename) {
         List<BellNote> notes = new ArrayList<>();
 
-        // Open the file using try-with-resources so it's automatically closed when done
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String line;
-            int lineNumber = 0; // Track line number for useful error messages
+            int lineNumber = 0;
 
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
-                line = line.trim(); // Strip leading/trailing whitespace
+                line = line.trim();
 
-                // Skip blank lines and comment lines (starting with '#')
-                if (line.isEmpty()) {
+                if (line.isEmpty() || line.startsWith("#")) {
                     continue;
                 }
 
-                // Split on any whitespace — expects exactly two tokens: NOTE and LENGTH
                 String[] parts = line.split("\\s+");
                 if (parts.length != 2) {
-                    throw new IllegalArgumentException(
-                            "Invalid format on line " + lineNumber + ": \"" + line +
-                                    "\". Expected: <NOTE> <LENGTH>"
-                    );
+                    System.err.println("Skipping line " + lineNumber + ": invalid format \"" + line +
+                            "\". Expected: <NOTE> <LENGTH>");
+                    continue;
                 }
 
                 Note note;
                 NoteLength length;
 
-                // Parse the first token as a Note enum value (case-insensitive)
                 try {
                     note = Note.valueOf(parts[0].toUpperCase());
                 } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException(
-                            "Unknown note \"" + parts[0] + "\" on line " + lineNumber +
-                                    ". Valid notes: " + java.util.Arrays.toString(Note.values())
-                    );
+                    System.err.println("Skipping line " + lineNumber + ": unknown note \"" + parts[0] + "\".");
+                    continue;
                 }
 
-                // Parse the second token as a numeric length: 1=WHOLE, 2=HALF, 4=QUARTER, 8=EIGTH
                 try {
                     length = NoteLength.fromNumeric(Integer.parseInt(parts[1]));
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException(
-                            "Invalid length \"" + parts[1] + "\" on line " + lineNumber +
-                                    ". Expected a number: 1, 2, 4, or 8"
-                    );
+                    System.err.println("Skipping line " + lineNumber + ": invalid length \"" + parts[1] +
+                            "\". Expected a number: 1, 2, 4, or 8.");
+                    continue;
+                } catch (IllegalArgumentException e) {
+                    System.err.println("Skipping line " + lineNumber + ": " + e.getMessage());
+                    continue;
                 }
 
-                // Both tokens valid — add the note to the song
                 notes.add(new BellNote(note, length));
             }
+        } catch (IOException e) {
+            System.err.println("Error reading file \"" + filename + "\": " + e.getMessage());
+            return null;
         }
 
-        // Reject empty files so playSong is never called with nothing to play
         if (notes.isEmpty()) {
-            throw new IllegalArgumentException("Song file \"" + filename + "\" contains no notes.");
+            System.err.println("Error: Song file \"" + filename + "\" contains no valid notes.");
+            return null;
         }
 
         return notes;
@@ -150,7 +157,6 @@ enum NoteLength {
         return timeMs;
     }
 
-    // Maps a numeric denominator (1, 2, 4, 8) to the corresponding NoteLength
     public static NoteLength fromNumeric(int n) {
         switch (n) {
             case 1: return WHOLE;
@@ -165,7 +171,6 @@ enum NoteLength {
 }
 
 enum Note {
-    // REST Must be the first 'Note'
     REST,
     A4,
     A4S,
@@ -181,10 +186,9 @@ enum Note {
     G4S,
     A5;
 
-    public static final int SAMPLE_RATE = 48 * 1024; // ~48KHz
+    public static final int SAMPLE_RATE = 48 * 1024;
     public static final int MEASURE_LENGTH_SEC = 1;
 
-    // Circumference of a circle divided by # of samples
     private static final double step_alpha = (2.0d * Math.PI) / SAMPLE_RATE;
 
     private final double FREQUENCY_A_HZ = 440.0d;
@@ -195,12 +199,10 @@ enum Note {
     private Note() {
         int n = this.ordinal();
         if (n > 0) {
-            // Calculate the frequency!
             final double halfStepUpFromA = n - 1;
             final double exp = halfStepUpFromA / 12.0d;
             final double freq = FREQUENCY_A_HZ * Math.pow(2.0d, exp);
 
-            // Create sinusoidal data sample for the desired frequency
             final double sinStep = freq * step_alpha;
             for (int i = 0; i < sinSample.length; i++) {
                 sinSample[i] = (byte)(Math.sin(i * sinStep) * MAX_VOLUME);

@@ -2,28 +2,44 @@
 
     <description>Compiles and runs the Tone music player</description>
 
-    <!-- Directories -->
     <property name="src.dir"   value="src" />
-    <property name="build.dir" value="build" />
+    <property name="dist.dir"  value="dist" />
 
-    <!-- Compile all .java source files into the build directory -->
-    <target name="compile" description="Compile source files">
-        <mkdir dir="${build.dir}" />
-        <javac srcdir="${src.dir}" destdir="${build.dir}" includeantruntime="false" />
+    <presetdef name="javac">
+        <javac includeantruntime="false" debug="true" />
+    </presetdef>
+
+    <target name="init">
+        <mkdir dir="${dist.dir}" />
+        <mkdir dir="${dist.dir}/classes" />
     </target>
 
-    <!-- Run the compiled Tone class (depends on compile being done first) -->
-    <!-- Usage: ant run -Dfile=mary.txt -->
-    <target name="run" depends="compile" description="Compile and run Tone">
-        <fail unless="file" message="Please specify a song file: ant run -Dfile=mary.txt" />
-        <java classname="Tone" classpath="${build.dir}" fork="true">
-            <arg value="${file}" />
+    <target name="compile" depends="init" description="Compile source files">
+        <javac srcdir="${src.dir}" destdir="${dist.dir}/classes" />
+    </target>
+
+    <target name="jar" depends="compile" description="Package into a JAR">
+        <jar destfile="${dist.dir}/${ant.project.name}.jar" basedir="${dist.dir}/classes">
+            <manifest>
+                <attribute name="Main-Class" value="Tone" />
+            </manifest>
+        </jar>
+    </target>
+
+    <!-- If -Dsong is not provided on the command line, default to mary.txt -->
+    <target name="songarg" unless="song">
+        <property name="song" value="mary.txt" />
+    </target>
+
+    <!-- Run with default song, or override: ant run -Dsong=other.txt -->
+    <target name="run" depends="jar,songarg" description="Run Tone (default: mary.txt)">
+        <java jar="${dist.dir}/${ant.project.name}.jar" fork="true">
+            <arg value="${basedir}/${song}" />
         </java>
     </target>
 
-    <!-- Delete the build directory to force a clean recompile -->
     <target name="clean" description="Remove compiled class files">
-        <delete dir="${build.dir}" />
+        <delete dir="${dist.dir}" />
     </target>
 
 </project>
